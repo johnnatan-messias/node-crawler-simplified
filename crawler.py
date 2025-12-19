@@ -233,6 +233,8 @@ if __name__ == '__main__':
     print(f"Block range: {block_number_min} → {block_number_max}")
     print(f"Batch size: {batch_size}")
     print(f"Max workers (concurrency): {max_workers}")
+    print(f"Timeout: {timeout}")
+    print(f"Node endpoint: {node_endpoint}")
 
     # Node connection
     W3 = AsyncWeb3(AsyncHTTPProvider(
