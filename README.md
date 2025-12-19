@@ -50,7 +50,8 @@ python crawler.py \
   --batch-size 1000 \
   --max-workers 20 \
   --node-endpoint http://ethereum-archive:8545 \
-  --timeout 60
+  --timeout 60 \
+  --datadir data
 ```
 
 ### Crawl block receipts
@@ -63,11 +64,12 @@ python crawler.py \
   --batch-size 1000 \
   --max-workers 20 \
   --node-endpoint http://ethereum-archive:8545 \
-  --timeout 60
+  --timeout 60 \
+  --datadir data
 ```
 
-Crawler output is written to `data/blocks` and `data/blocks_receipts` under the
-repo root.
+Crawler output is written under `./data` by default. Use `--datadir` to write to
+a different folder (e.g., `--datadir my_data`).
 
 ### Convert pickle to Parquet
 

@@ -13,18 +13,6 @@ from pathlib import Path
 from tqdm.asyncio import tqdm
 from web3 import AsyncWeb3, AsyncHTTPProvider
 
-# Setup directories for data storage
-_BASE_DIR = Path(__file__).parent / "data"
-print(_BASE_DIR)
-
-BLOCKS_DIR = _BASE_DIR / "blocks"
-TXS_DIR = _BASE_DIR / "transactions"
-BLOCKS_RECEIPTS_DIR = _BASE_DIR / "blocks_receipts"
-
-BLOCKS_DIR.mkdir(parents=True, exist_ok=True)
-TXS_DIR.mkdir(parents=True, exist_ok=True)
-BLOCKS_RECEIPTS_DIR.mkdir(parents=True, exist_ok=True)
-
 
 async def check_connection():
     """Verify connection to the blockchain node and display connection info."""
@@ -223,6 +211,13 @@ if __name__ == '__main__':
         help="Define the connection timeout in seconds. Default: 60 seconds"
     )
 
+    parser.add_argument(
+        "--datadir",
+        type=str,
+        default="./data",
+        help="Define the data directory name. Default: ./data"
+    )
+
     args = parser.parse_args()
 
     block_number_min = args.min
@@ -231,16 +226,30 @@ if __name__ == '__main__':
     max_workers = args.max_workers
     timeout = args.timeout
     node_endpoint = args.node_endpoint
+    datadir = args.datadir
 
     print(f"Block range: {block_number_min} → {block_number_max}")
     print(f"Batch size: {batch_size}")
     print(f"Max workers (concurrency): {max_workers}")
+    print(f"Data directory: {datadir}")
     print(f"Timeout: {timeout}")
     print(f"Node endpoint: {node_endpoint}")
 
     # Node connection
     W3 = AsyncWeb3(AsyncHTTPProvider(
         node_endpoint, request_kwargs={'timeout': timeout}))
+
+    # Setup directories for data storage
+    _BASE_DIR = Path(__file__).parent / datadir
+    print(_BASE_DIR)
+
+    BLOCKS_DIR = _BASE_DIR / "blocks"
+    TXS_DIR = _BASE_DIR / "transactions"
+    BLOCKS_RECEIPTS_DIR = _BASE_DIR / "blocks_receipts"
+
+    BLOCKS_DIR.mkdir(parents=True, exist_ok=True)
+    TXS_DIR.mkdir(parents=True, exist_ok=True)
+    BLOCKS_RECEIPTS_DIR.mkdir(parents=True, exist_ok=True)
 
     try:
         if args.method == "block_receipts":
