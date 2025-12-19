@@ -14,7 +14,9 @@ from tqdm.asyncio import tqdm
 from web3 import AsyncWeb3, AsyncHTTPProvider
 
 # Setup directories for data storage
-_BASE_DIR = Path(__file__).parent.parent / "data"
+_BASE_DIR = Path(__file__).parent / "data"
+print(_BASE_DIR)
+
 BLOCKS_DIR = _BASE_DIR / "blocks"
 TXS_DIR = _BASE_DIR / "transactions"
 BLOCKS_RECEIPTS_DIR = _BASE_DIR / "blocks_receipts"
