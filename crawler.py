@@ -227,6 +227,12 @@ if __name__ == '__main__':
         help="Whether to fetch full transaction data in blocks (default: False)"
     )
 
+    parser.add_argument(
+        "--is-polygon",
+        action='store_true',
+        help="Whether to use Polygon-specific defaults (default: False)"
+    )
+
     args = parser.parse_args()
 
     block_number_min = args.min
@@ -237,6 +243,7 @@ if __name__ == '__main__':
     node_endpoint = args.node_endpoint
     datadir = args.datadir
     full_transactions = args.full_transactions
+    is_polygon = args.is_polygon
 
     print(f"Block range: {block_number_min} → {block_number_max}")
     print(f"Batch size: {batch_size}")
@@ -244,10 +251,16 @@ if __name__ == '__main__':
     print(f"Data directory: {datadir}")
     print(f"Timeout: {timeout}")
     print(f"Node endpoint: {node_endpoint}")
+    print(f"Fetch full transactions: {full_transactions}")
+    print(f"Is Polygon: {is_polygon}")
 
     # Node connection
     W3 = AsyncWeb3(AsyncHTTPProvider(
         node_endpoint, request_kwargs={'timeout': timeout}))
+
+    if is_polygon:
+        from web3.middleware import ExtraDataToPOAMiddleware
+        W3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
 
     # Setup directories for data storage
     _BASE_DIR = Path(__file__).parent / datadir
