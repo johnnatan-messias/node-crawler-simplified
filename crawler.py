@@ -224,7 +224,6 @@ if __name__ == '__main__':
     parser.add_argument(
         "--full-transactions",
         action='store_true',
-        default=False,
         help="Whether to fetch full transaction data in blocks (default: False)"
     )
 
@@ -238,6 +237,8 @@ if __name__ == '__main__':
     node_endpoint = args.node_endpoint
     datadir = args.datadir
     full_transactions = args.full_transactions
+    print(full_transactions)
+    exit()
 
     print(f"Block range: {block_number_min} → {block_number_max}")
     print(f"Batch size: {batch_size}")
