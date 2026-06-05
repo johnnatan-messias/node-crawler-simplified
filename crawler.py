@@ -52,13 +52,14 @@ async def fetch_block_receipts(w3_async, block_number):
     return await w3_async.eth.get_block_receipts(block_number)
 
 
-async def get_blocks(w3_async, block_numbers, max_workers=20):
+async def get_blocks(w3_async, block_numbers, max_workers=20, full_transactions=False):
     """Fetch multiple blocks concurrently.
 
     Args:
         w3_async: Async Web3 instance
         block_numbers: List of block numbers to fetch
         max_workers: Maximum concurrent requests (default: 20)
+        full_transactions: Whether to fetch full transaction data (default: False)
 
     Returns:
         list: Block data for all blocks
@@ -67,7 +68,7 @@ async def get_blocks(w3_async, block_numbers, max_workers=20):
 
     async def sem_task(bn):
         async with semaphore:
-            return await fetch_block(w3_async, bn)
+            return await fetch_block(w3_async, bn, full_transactions=full_transactions)
 
     tasks = [sem_task(bn) for bn in block_numbers]
 
@@ -104,7 +105,7 @@ async def get_blocks_receipts(w3_async, block_numbers, max_workers=20):
     return blocks
 
 
-async def crawl_block_data(block_number_min, block_number_max, batch_size=100_000, max_workers=20):
+async def crawl_block_data(block_number_min, block_number_max, batch_size=100_000, max_workers=20, full_transactions=False):
     """Fetch and save blocks in batches.
 
     Args:
@@ -112,6 +113,7 @@ async def crawl_block_data(block_number_min, block_number_max, batch_size=100_00
         block_number_max: Ending block number (inclusive)
         batch_size: Blocks per batch (default: 100,000)
         max_workers: Concurrent requests (default: 20)
+        full_transactions: Whether to fetch full transaction data (default: False)
     """
     await check_connection()
 
@@ -122,7 +124,8 @@ async def crawl_block_data(block_number_min, block_number_max, batch_size=100_00
         blocks = await get_blocks(
             block_numbers=range(block_start, block_end + 1),
             w3_async=W3,
-            max_workers=max_workers
+            max_workers=max_workers,
+            full_transactions=full_transactions
         )
 
         file_path = BLOCKS_DIR / f"blocks_{block_start}_{block_end}.pkl.gz"
@@ -218,6 +221,12 @@ if __name__ == '__main__':
         help="Define the data directory name. Default: ./data"
     )
 
+    parser.add_argument(
+        "--full-transactions",
+        action='store_true',
+        help="Whether to fetch full transaction data in blocks (default: False)"
+    )
+
     args = parser.parse_args()
 
     block_number_min = args.min
@@ -227,6 +236,7 @@ if __name__ == '__main__':
     timeout = args.timeout
     node_endpoint = args.node_endpoint
     datadir = args.datadir
+    full_transactions = args.full_transactions
 
     print(f"Block range: {block_number_min} → {block_number_max}")
     print(f"Batch size: {batch_size}")
@@ -264,7 +274,8 @@ if __name__ == '__main__':
                 block_number_min,
                 block_number_max,
                 batch_size=batch_size,
-                max_workers=max_workers
+                max_workers=max_workers,
+                full_transactions=full_transactions
             ))
     except KeyboardInterrupt:
         print("Interrupted by user.")
