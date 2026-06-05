@@ -224,6 +224,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--full-transactions",
         action='store_true',
+        default=False,
         help="Whether to fetch full transaction data in blocks (default: False)"
     )
 
