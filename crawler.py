@@ -5,13 +5,13 @@
 # https://twitter.com/johnnatan_me
 # https://scholar.google.com/citations?user=EoGEeFAAAAAJ
 
-import gzip
-import pickle
 import asyncio
 import argparse
 from pathlib import Path
 from tqdm.asyncio import tqdm
 from web3 import AsyncWeb3, AsyncHTTPProvider
+
+from pickle_to_parquet import PickleToParquetConverter
 
 
 async def check_connection():
@@ -21,8 +21,10 @@ async def check_connection():
         block_number = await W3.eth.block_number
         print(f"Is connected to node: {is_connected}")
         print(f"The most recent block is: {block_number}")
+        if not is_connected:
+            raise ConnectionError("Web3 reported that it is not connected")
     except Exception as e:
-        print(f"Warning: Failed to connect to node: {e}")
+        raise ConnectionError(f"Failed to connect to node: {e}") from e
 
 
 def get_batch_intervals(block_start, block_end, batch_size):
@@ -105,8 +107,8 @@ async def get_blocks_receipts(w3_async, block_numbers, max_workers=20):
     return blocks
 
 
-async def crawl_block_data(block_number_min, block_number_max, batch_size=100_000, max_workers=20, full_transactions=False):
-    """Fetch and save blocks in batches.
+async def crawl_block_data(block_number_min, block_number_max, batch_size=100_000, max_workers=20, full_transactions=False, compression='zstd'):
+    """Fetch and save blocks in Parquet batches.
 
     Args:
         block_number_min: Starting block number (inclusive)
@@ -114,50 +116,60 @@ async def crawl_block_data(block_number_min, block_number_max, batch_size=100_00
         batch_size: Blocks per batch (default: 100,000)
         max_workers: Concurrent requests (default: 20)
         full_transactions: Whether to fetch full transaction data (default: False)
+        compression: Parquet compression codec (default: zstd)
     """
     await check_connection()
+    converter = PickleToParquetConverter(output_dir=BLOCKS_DIR)
 
     intervals = get_batch_intervals(
         block_number_min, block_number_max, batch_size=batch_size)
 
     for block_start, block_end in tqdm(intervals, desc="Fetching blocks", ascii=True):
+        file_path = BLOCKS_DIR / f"blocks_{block_start}_{block_end}.parquet"
+        if file_path.exists():
+            print(f"Skipping existing file: {file_path}")
+            continue
+
         blocks = await get_blocks(
             block_numbers=range(block_start, block_end + 1),
             w3_async=W3,
             max_workers=max_workers,
             full_transactions=full_transactions
         )
-
-        file_path = BLOCKS_DIR / f"blocks_{block_start}_{block_end}.pkl.gz"
-        with gzip.open(file_path, 'wb') as f:
-            pickle.dump(blocks, f)
+        df = converter.normalize_block_data(blocks)
+        converter.save_parquet(df, file_path, compression=compression)
 
 
-async def crawl_block_receipts_data(block_number_min, block_number_max, batch_size=100_000, max_workers=20):
-    """Fetch and save block receipts in batches.
+async def crawl_block_receipts_data(block_number_min, block_number_max, batch_size=100_000, max_workers=20, compression='zstd'):
+    """Fetch and save block receipts in Parquet batches.
 
     Args:
         block_number_min: Starting block number (inclusive)
         block_number_max: Ending block number (inclusive)
         batch_size: Blocks per batch (default: 100,000)
         max_workers: Concurrent requests (default: 20)
+        compression: Parquet compression codec (default: zstd)
     """
     await check_connection()
+    converter = PickleToParquetConverter(output_dir=BLOCKS_RECEIPTS_DIR)
 
     intervals = get_batch_intervals(
         block_number_min, block_number_max, batch_size=batch_size)
 
     for block_start, block_end in tqdm(intervals, desc="Fetching blocks receipts", ascii=True):
+        file_path = BLOCKS_RECEIPTS_DIR / \
+            f"blocks_receipts_{block_start}_{block_end}.parquet"
+        if file_path.exists():
+            print(f"Skipping existing file: {file_path}")
+            continue
+
         blocks_receipts = await get_blocks_receipts(
             block_numbers=range(block_start, block_end + 1),
             w3_async=W3,
             max_workers=max_workers
         )
-
-        file_path = BLOCKS_RECEIPTS_DIR / \
-            f"blocks_receipts_{block_start}_{block_end}.pkl.gz"
-        with gzip.open(file_path, 'wb') as f:
-            pickle.dump(blocks_receipts, f)
+        df = converter.normalize_receipt_data(blocks_receipts)
+        converter.save_parquet(df, file_path, compression=compression)
 
 
 if __name__ == '__main__':
@@ -222,6 +234,14 @@ if __name__ == '__main__':
     )
 
     parser.add_argument(
+        "--compression",
+        type=str,
+        default="zstd",
+        choices=["snappy", "gzip", "brotli", "zstd", "none"],
+        help="Parquet compression codec. Default: zstd"
+    )
+
+    parser.add_argument(
         "--full-transactions",
         action='store_true',
         help="Whether to fetch full transaction data in blocks (default: False)"
@@ -242,6 +262,7 @@ if __name__ == '__main__':
     timeout = args.timeout
     node_endpoint = args.node_endpoint
     datadir = args.datadir
+    compression = args.compression
     full_transactions = args.full_transactions
     is_polygon = args.is_polygon
 
@@ -249,6 +270,7 @@ if __name__ == '__main__':
     print(f"Batch size: {batch_size}")
     print(f"Max workers (concurrency): {max_workers}")
     print(f"Data directory: {datadir}")
+    print(f"Parquet compression: {compression}")
     print(f"Timeout: {timeout}")
     print(f"Node endpoint: {node_endpoint}")
     print(f"Fetch full transactions: {full_transactions}")
@@ -271,7 +293,6 @@ if __name__ == '__main__':
     BLOCKS_RECEIPTS_DIR = _BASE_DIR / "blocks_receipts"
 
     BLOCKS_DIR.mkdir(parents=True, exist_ok=True)
-    TXS_DIR.mkdir(parents=True, exist_ok=True)
     BLOCKS_RECEIPTS_DIR.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -280,7 +301,8 @@ if __name__ == '__main__':
                 block_number_min,
                 block_number_max,
                 batch_size=batch_size,
-                max_workers=max_workers
+                max_workers=max_workers,
+                compression=compression
             ))
         elif args.method == "blocks":
             asyncio.run(crawl_block_data(
@@ -288,7 +310,8 @@ if __name__ == '__main__':
                 block_number_max,
                 batch_size=batch_size,
                 max_workers=max_workers,
-                full_transactions=full_transactions
+                full_transactions=full_transactions,
+                compression=compression
             ))
     except KeyboardInterrupt:
         print("Interrupted by user.")
